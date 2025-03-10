@@ -26,17 +26,26 @@ log() {
     shift
     local message="$@"
     local timestamp=$(date "+%Y-%m-%d %H:%M:%S")
-    echo "[$timestamp] [$level] $message" | tee -a $LOG_FILE
+    echo "[$timestamp] [$level] $message" | tee -a "$LOG_FILE"
 }
 
 # Create a function for error handling
 handle_error() {
     local exit_code=$?
     local line_number=$1
+    
+    # Check if the exit code is really an error (non-zero)
     if [ $exit_code -ne 0 ]; then
         log "ERROR" "Error occurred at line $line_number, exit code $exit_code"
         log "ERROR" "Check the log file at $LOG_FILE for details"
-        log "ERROR" "Last successful step was: $(cat $PROGRESS_FILE 2>/dev/null || echo 'None')"
+        
+        # Safely read the progress file
+        local last_step="None"
+        if [ -f "$PROGRESS_FILE" ]; then
+            last_step=$(cat "$PROGRESS_FILE" 2>/dev/null || echo "unknown")
+        fi
+        
+        log "ERROR" "Last successful step was: $last_step"
         log "ERROR" "To resume from the last successful step, run: $0 --resume"
         exit $exit_code
     fi
@@ -344,15 +353,19 @@ cleanup() {
     log "INFO" "Cleanup completed"
 }
 
-# Function to mark progress
+# Function to safely mark progress
 mark_progress() {
-    echo "$1" > $PROGRESS_FILE
+    echo "$1" > "$PROGRESS_FILE" 2>/dev/null || {
+        log "WARNING" "Could not write to progress file $PROGRESS_FILE"
+        return 1
+    }
+    return 0
 }
 
-# Function to get current progress
+# Function to safely get current progress
 get_progress() {
-    if [ -f $PROGRESS_FILE ]; then
-        cat $PROGRESS_FILE
+    if [ -f "$PROGRESS_FILE" ]; then
+        cat "$PROGRESS_FILE" 2>/dev/null || echo "none"
     else
         echo "none"
     fi
@@ -361,9 +374,9 @@ get_progress() {
 # Main script execution starts here
 
 # Create log directory if it doesn't exist
-sudo mkdir -p $(dirname $LOG_FILE)
-sudo touch $LOG_FILE
-sudo chown $(id -u):$(id -g) $LOG_FILE
+sudo mkdir -p $(dirname "$LOG_FILE") || true
+sudo touch "$LOG_FILE" 2>/dev/null || true
+sudo chown $(id -u):$(id -g) "$LOG_FILE" 2>/dev/null || true
 
 # Print script info
 log "INFO" "==============================================="
@@ -382,8 +395,11 @@ if [ "$1" = "--resume" ]; then
     log "INFO" "Last successful step: $(get_progress)"
 fi
 
-# Set the trap for error handling
-trap 'handle_error $LINENO' ERR
+# Set the trap for error handling (make it more robust)
+# Use || true to prevent the trap itself from failing
+trap 'handle_error "$LINENO" || true' ERR || {
+    log "WARNING" "Could not set error trap. Errors might not be caught properly."
+}
 
 # Start the installation process based on progress
 CURRENT_PROGRESS=$(get_progress)
