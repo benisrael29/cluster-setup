@@ -50,7 +50,7 @@ The setup consists of:
 
 ### 4. Configure SSH access to the master node
 
-To enable SSH access to the master node from your personal PC:
+To enable SSH access to the master node from your personal PC on the same local network:
 
 1. On the master node, run:
    ```bash
@@ -60,10 +60,11 @@ To enable SSH access to the master node from your personal PC:
 2. The script will:
    - Install the SSH server
    - Configure SSH for secure remote access
-   - Open the necessary firewall ports
+   - Configure the firewall to allow SSH access from the local network only
+   - Block SSH access from the internet and other networks
    - Display connection information
 
-3. Connect from your personal PC using:
+3. Connect from your personal PC (which must be on the same local network) using:
    ```bash
    ssh username@master-node-ip
    ```
@@ -84,7 +85,7 @@ You should see both nodes listed, with the master node showing status `Ready` an
 
 ## Remote Kubernetes Administration
 
-After setting up SSH access, you can administer your Kubernetes cluster remotely from your personal PC:
+After setting up SSH access, you can administer your Kubernetes cluster remotely from your personal PC (on the same local network):
 
 1. Install kubectl on your personal PC
 
@@ -107,6 +108,15 @@ You can modify the following variables in the scripts before running them:
 - `POD_NETWORK_CIDR` - CIDR for pod networking (default: 10.244.0.0/16)
 - `NODE_NAME` - Hostname for each node
 - `SSH_PORT` - SSH port (default: 22) in setup_ssh_access.sh
+
+## Network Security
+
+The setup is configured with the following network security considerations:
+
+- SSH access is restricted to connections from the local network only
+- External access from the internet is blocked by default
+- The script automatically detects your local network (e.g., 192.168.1.0/24) and configures firewall rules accordingly
+- This provides network-level protection in addition to authentication
 
 ## Troubleshooting
 
@@ -131,7 +141,8 @@ If pods cannot communicate between nodes:
 If you can't connect to the master node via SSH:
 1. Verify the SSH service is running: `systemctl status ssh`
 2. Check firewall settings: `sudo ufw status` or `sudo iptables -L`
-3. Verify you're using the correct IP address and username
+3. Verify your PC is on the same local network as the master node
+4. Verify you're using the correct IP address and username
 
 ### Reset the cluster
 
